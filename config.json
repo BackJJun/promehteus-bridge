@@ -1,0 +1,25 @@
+{
+  "DEFAULT": {
+    "SECRET_KEY": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxY2UmcF2hIL5oLJp5bJj9w0CHxh9rH86a0UAynEm+Qy4p20yqpHytVUE3u8U7wSbvqEx9pXAQccqIB1lLdD7wg1Z/1z5PDiVviC2guEtAnQJBVKfBa9mbEf8rRsV82okUP6wTr4ocTbGBLDIOaTXZCq6A5QF7cGbF23ZTsITc4wV4SioS478mooDqIQW8GsMEOQTfUsEHspMNoGjv7FQS9VUImPr3bTr8xYJAfDkaYYdMLO87RSxlbneCo6Qbbuy/2yWrkXPHo9LvpXzbW8KMtoylWQkqMAkavQl3ks8I3Jwijf0k117cpRG0XnZrCXg27/Rxd37Eb45V6kozgySPwIDAQAB",
+
+    "DATABASE_POSTGRESQL_URL": "dev.wyhil.com",
+    "DATABASE_POSTGRESQL_PORT": "15432",
+    "DATABASE_POSTGRESQL_DBNAME": "crux_codevibe",
+    "DATABASE_POSTGRESQL_USERNAME": "crux",
+    "DATABASE_POSTGRESQL_PASSWORD": "crux5748#!12",
+
+    "KEYCLOAK_SERVER_URL": "http://dev.wyhil.com:19090",
+    "KEYCLOAK_REALM": "myrealm",
+    "KEYCLOAK_CLIENT_ID": "prometheus_plg",
+    "KEYCLOAK_CLIENT_SECRET": "tqmRftYpzKJEeZc7XM4x6Gpt0RMHGHke",
+
+    "VLLM_API_BASE_URL": "http://211.51.63.154:8000",
+    "GPT_OSS_MAX_INPUT_TOKENS": 80000,
+
+    "SECURE_BEARER_BIN_PATH": "src/static/secure_check/bin/bearer",
+    "SECURE_BEARER_RULE_PATH": "src/static/secure_check/secure_rules",
+
+    "summary_model_url": "http://211.51.63.154:58500/v1/chat/completions",
+    "summary_model_id": "gemma-4-e4b-it"
+  }
+}
