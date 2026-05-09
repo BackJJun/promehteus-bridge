@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from starlette.responses import Response, JSONResponse
 
 from src.auth.auth import read_access_token, keycloak_login, keycloak_refresh_token
+from src.db.dao_user import select_user_language_by_email
 from src.util.token_read import print_exp_from_payload
 
 auth_router = APIRouter(tags=["auth"])
@@ -32,10 +33,19 @@ async def login(
     # 토큰 유효시간을 출력해봄(확인용)
     print_exp_from_payload(payload)
 
+    language = payload.get('locale') or payload.get('language') or payload.get('lang')
+    try:
+        user_language = await select_user_language_by_email(payload['email'])
+        if user_language:
+            language = user_language
+    except Exception as e:
+        logger.warning(f"Failed to load user language: {e}")
+
     response = JSONResponse(content={
         "message": f"로그인 성공",
         "user_name": payload['preferred_username'],
         "user_email": payload['email'],
+        "language": language,
         "access_token": res_json['access_token'],
         "refresh_token": res_json['refresh_token'],
     })

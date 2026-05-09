@@ -32,7 +32,8 @@ async def update_session_data(title, workspace_directory, session_id, user_id):
         UPDATE chat_session_info 
         SET title = $1, 
             workspace_directory = $2, 
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = CURRENT_TIMESTAMP,
+            is_deleted = FALSE
         WHERE session_id = $3 AND user_id = $4
         RETURNING chat_id
     """, (title, workspace_directory, session_id, user_id))
@@ -43,6 +44,23 @@ async def insert_session_data(title, workspace_directory, session_id, user_id):
     return await Connection.execute_one_val("""
         INSERT INTO chat_session_info (session_id, user_id, title, workspace_directory)
         VALUES ($1, $2, $3, $4)
+        RETURNING chat_id
+    """, (session_id, user_id, title, workspace_directory))
+
+
+async def upsert_session_data(title, workspace_directory, session_id, user_id):
+    """Create or update a session row and return its chat_id."""
+    return await Connection.execute_one_val("""
+        INSERT INTO chat_session_info (session_id, user_id, title, workspace_directory)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (session_id)
+        DO UPDATE
+        SET
+            title = EXCLUDED.title,
+            workspace_directory = EXCLUDED.workspace_directory,
+            updated_at = CURRENT_TIMESTAMP,
+            is_deleted = FALSE
+        WHERE chat_session_info.user_id = EXCLUDED.user_id
         RETURNING chat_id
     """, (session_id, user_id, title, workspace_directory))
 

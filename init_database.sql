@@ -24,6 +24,7 @@ CREATE TABLE chat_history_info
     message_index INT    NOT NULL,
     message_data  JSONB  NOT NULL, -- 전체 history item을 JSON으로 저장
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (chat_id) REFERENCES chat_session_info (chat_id) ON DELETE CASCADE,
     UNIQUE (chat_id, message_index)
