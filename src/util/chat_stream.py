@@ -11,9 +11,6 @@ from starlette.responses import JSONResponse, StreamingResponse
 from src.db import dao_models
 from src.llm_provider import get_provider
 from src.llm_provider.util import converter
-from src.llm_provider.util.context_compressor import compress_messages_with_summary
-
-DEFAULT_CONTEXT_LENGTH = 258_000
 
 
 def _preview(value: Any, max_len: int = 500) -> str | None:
@@ -402,49 +399,6 @@ async def stream_chat_response(data: dict[str, Any]) -> StreamingResponse | JSON
 
     if model_info.get("api_key", None):
         data["api_key"] = model_info["api_key"]
-
-    max_input_tokens = DEFAULT_CONTEXT_LENGTH
-    if max_input_tokens is not None:
-        request_id = data.get("requestId") or data.get("request_id")
-        compression_result = await compress_messages_with_summary(
-            messages,
-            max_input_tokens,
-            request_id=request_id,
-        )
-        if not compression_result.ok:
-            logger.error(
-                "context compression failed; blocking provider call: "
-                "request_id={} method={} reason={} before_tokens={} after_tokens={} limit={}",
-                request_id,
-                compression_result.method,
-                compression_result.reason,
-                compression_result.before_tokens,
-                compression_result.after_tokens,
-                max_input_tokens,
-            )
-            return JSONResponse(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                content={
-                    "error": "Context too large after compression",
-                    "reason": compression_result.reason,
-                    "before_tokens": compression_result.before_tokens,
-                    "after_tokens": compression_result.after_tokens,
-                    "limit": max_input_tokens,
-                },
-            )
-
-        messages = compression_result.messages
-        if compression_result.method != "none":
-            logger.info(
-                "context compression applied: request_id={} method={} "
-                "tokens {} -> {}, messages {} -> {}",
-                request_id,
-                compression_result.method,
-                compression_result.before_tokens,
-                compression_result.after_tokens,
-                len(data["messages"]),
-                len(messages),
-            )
 
     data["messages"] = messages
     chunk_list: list[Any] = []

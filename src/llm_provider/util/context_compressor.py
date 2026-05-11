@@ -18,6 +18,7 @@ import tiktoken
 from loguru import logger
 
 import config
+from src.db import dao_models
 
 # Default encoding for GPT models
 DEFAULT_ENCODING = "cl100k_base"
@@ -166,8 +167,17 @@ async def _call_summary_model(
     messages: List[Dict],
     request_id: str | None = None,
 ) -> str:
-    summary_model_url = getattr(config, "SUMMARY_MODEL_URL", None)
-    summary_model_id = getattr(config, "SUMMARY_MODEL_ID", None)
+    summary_model = await dao_models.select_summary_model()
+    summary_model_url = summary_model.get("api_base_url") if summary_model else None
+    summary_model_id = summary_model.get("model_id") if summary_model else None
+    summary_model_api_key = summary_model.get("api_key") if summary_model else None
+    summary_model_source = "db"
+
+    if not summary_model_url or not summary_model_id:
+        summary_model_url = getattr(config, "SUMMARY_MODEL_URL", None)
+        summary_model_id = getattr(config, "SUMMARY_MODEL_ID", None)
+        summary_model_api_key = getattr(config, "SUMMARY_MODEL_API_KEY", None)
+        summary_model_source = "config"
 
     if not summary_model_url or not summary_model_id:
         raise RuntimeError("missing_summary_config")
@@ -182,13 +192,18 @@ async def _call_summary_model(
 
     start = time.perf_counter()
     logger.info(
-        "[compress_messages] summary_model start request_id={} model={} url={}",
+        "[compress_messages] summary_model start request_id={} source={} model={} url={}",
         request_id,
+        summary_model_source,
         summary_model_id,
         url,
     )
+    headers = {}
+    if summary_model_api_key:
+        headers["Authorization"] = f"Bearer {summary_model_api_key}"
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
-        response = await client.post(url, json=payload)
+        response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
 

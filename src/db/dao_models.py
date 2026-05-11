@@ -29,3 +29,18 @@ async def select_default_model():
         WHERE default_model = 'y'
     """, )
 
+
+async def select_summary_model():
+    """summary role LLM lookup"""
+    return await Connection.execute_one("""
+        SELECT *
+        FROM model_info
+        WHERE is_active = true
+          AND model_roles IS NOT NULL
+          AND model_roles::text LIKE '%"summary"%'
+        ORDER BY
+          CASE WHEN default_model = 'y' THEN 0 ELSE 1 END,
+          id
+        LIMIT 1
+    """, )
+
