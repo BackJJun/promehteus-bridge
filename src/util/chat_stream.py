@@ -321,6 +321,7 @@ def _filter_unsupported_messages(
 
 async def stream_chat_response(data: dict[str, Any]) -> StreamingResponse | JSONResponse:
     data = dict(data)
+    request_id = data.get("requestId") or data.get("request_id")
     messages = data.get("messages")
     if not isinstance(messages, list) or not messages:
         raise HTTPException(
