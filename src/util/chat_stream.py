@@ -76,6 +76,26 @@ def _summarize_stream_chunk(chunk: Any) -> dict[str, Any]:
     return summary
 
 
+def apply_qwen_chat_template_kwargs(data: dict[str, Any], model_info: dict[str, Any]) -> None:
+    model_values = [
+        data.get("model"),
+        model_info.get("model_id"),
+        model_info.get("model_name"),
+        model_info.get("model_class"),
+        model_info.get("model_provider"),
+    ]
+    is_qwen = any("qwen" in str(value).lower() for value in model_values if value is not None)
+    if not is_qwen:
+        return
+
+    chat_template_kwargs = data.get("chat_template_kwargs")
+    if not isinstance(chat_template_kwargs, dict):
+        chat_template_kwargs = {}
+        data["chat_template_kwargs"] = chat_template_kwargs
+
+    chat_template_kwargs["enable_thinking"] = False
+
+
 def extract_response_text(chunks: list[Any]) -> str:
     content_text = ""
     for chunk in chunks:
@@ -381,6 +401,7 @@ async def stream_chat_response(data: dict[str, Any]) -> StreamingResponse | JSON
     else:
         data["max_tokens"] = 4096
     logger.info(f'applied max_tokens={data.get("max_tokens")}')
+    apply_qwen_chat_template_kwargs(data, model_info)
     logger.info(
         "request tools count={}, tool_choice={}, parallel_tool_calls={}",
         len(data.get("tools") or []),
