@@ -3,8 +3,10 @@ Unit tests for context_compressor module
 """
 import pytest
 from src.llm_provider.util.context_compressor import (
+    _build_summary_model_payload,
     count_tokens,
     compress_messages,
+    compress_messages_with_summary,
 )
 
 
@@ -98,3 +100,65 @@ class TestCompressMessages:
         assert "Calling tool..." not in contents
         assert "Tool result" not in contents
         assert "Recent question" in contents
+
+
+def test_build_summary_model_payload_disables_qwen_thinking():
+    payload = _build_summary_model_payload(
+        "Qwen/Qwen3.6-27B",
+        [{"role": "user", "content": "old context"}],
+    )
+
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_build_summary_model_payload_leaves_non_qwen_unchanged():
+    payload = _build_summary_model_payload(
+        "gemma-4-e4b-it",
+        [{"role": "user", "content": "old context"}],
+    )
+
+    assert "chat_template_kwargs" not in payload
+
+
+@pytest.mark.asyncio
+async def test_compress_messages_with_summary_does_not_call_summary_model(monkeypatch):
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("summary model should not be called")
+
+    monkeypatch.setattr(
+        "src.llm_provider.util.context_compressor._call_summary_model",
+        fail_if_called,
+    )
+    messages = [
+        {"role": "system", "content": "System"},
+        {"role": "user", "content": "Old question " * 100},
+        {"role": "assistant", "content": "Old answer " * 100},
+        {"role": "user", "content": "Recent question"},
+    ]
+
+    result = await compress_messages_with_summary(messages, max_tokens=25)
+
+    assert result.ok is True
+    assert result.method == "delete_pairs"
+    contents = [message["content"] for message in result.messages]
+    assert not any("Old question" in content for content in contents)
+    assert not any("Old answer" in content for content in contents)
+    assert "Recent question" in contents
+
+
+@pytest.mark.asyncio
+async def test_compress_messages_with_summary_ignores_message_count_summary_model(monkeypatch):
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("summary model should not be called")
+
+    monkeypatch.setattr(
+        "src.llm_provider.util.context_compressor._call_summary_model",
+        fail_if_called,
+    )
+    messages = [{"role": "user", "content": f"message {index}"} for index in range(100)]
+
+    result = await compress_messages_with_summary(messages, max_tokens=10000)
+
+    assert result.ok is True
+    assert result.method == "none"
+    assert result.messages == messages

@@ -25,6 +25,7 @@ DEFAULT_ENCODING = "cl100k_base"
 NO_TOOL_OUTPUT = "No tool output"
 DEFAULT_RECENT_KEEP_COUNTS = (8, 6, 4, 2)
 DEFAULT_MAX_MESSAGES_BEFORE_SUMMARY = 100
+SUMMARY_MODEL_COMPRESSION_ENABLED = False
 
 
 @dataclass
@@ -163,6 +164,30 @@ def _build_fallback_summary(messages: List[Dict]) -> str:
     return "\n".join(lines)[:max_chars]
 
 
+def _is_qwen_model(*model_values: Any) -> bool:
+    return any("qwen" in str(value).lower() for value in model_values if value is not None)
+
+
+def _build_summary_model_payload(
+    summary_model_id: str,
+    messages: List[Dict],
+    *model_values: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "model": summary_model_id,
+        "messages": _build_summary_prompt(messages),
+        "temperature": 0.1,
+        "stream": False,
+    }
+
+    if _is_qwen_model(summary_model_id, *model_values):
+        payload["chat_template_kwargs"] = {
+            "enable_thinking": False,
+        }
+
+    return payload
+
+
 async def _call_summary_model(
     messages: List[Dict],
     request_id: str | None = None,
@@ -170,6 +195,9 @@ async def _call_summary_model(
     summary_model = await dao_models.select_summary_model()
     summary_model_url = summary_model.get("api_base_url") if summary_model else None
     summary_model_id = summary_model.get("model_id") if summary_model else None
+    summary_model_name = summary_model.get("model_name") if summary_model else None
+    summary_model_class = summary_model.get("model_class") if summary_model else None
+    summary_model_provider = summary_model.get("model_provider") if summary_model else None
     summary_model_api_key = summary_model.get("api_key") if summary_model else None
     summary_model_source = "db"
 
@@ -183,12 +211,13 @@ async def _call_summary_model(
         raise RuntimeError("missing_summary_config")
 
     url = normalize_url(str(summary_model_url))
-    payload = {
-        "model": summary_model_id,
-        "messages": _build_summary_prompt(messages),
-        "temperature": 0.1,
-        "stream": False,
-    }
+    payload = _build_summary_model_payload(
+        str(summary_model_id),
+        messages,
+        summary_model_name,
+        summary_model_class,
+        summary_model_provider,
+    )
 
     start = time.perf_counter()
     logger.info(
@@ -273,6 +302,38 @@ async def compress_messages_with_summary(
             before_tokens=before_tokens,
             after_tokens=before_tokens,
             method="none",
+        )
+
+    # Summary-model compaction is intentionally disabled for now.
+    # Keep only the deterministic Q&A pair deletion path.
+    if not SUMMARY_MODEL_COMPRESSION_ENABLED:
+        if not over_token_limit:
+            logger.info(
+                "[compress_messages] summary_model disabled; message_count compaction skipped request_id={}",
+                request_id,
+            )
+            return CompressionResult(
+                ok=True,
+                messages=messages,
+                before_tokens=before_tokens,
+                after_tokens=before_tokens,
+                method="none",
+            )
+
+        delete_compressed = compress_messages(messages, max_tokens)
+        delete_tokens = count_tokens(delete_compressed)
+        logger.info(
+            "[compress_messages] summary_model disabled; delete_pairs after_tokens={} request_id={}",
+            delete_tokens,
+            request_id,
+        )
+        return CompressionResult(
+            ok=delete_tokens <= max_tokens,
+            messages=delete_compressed,
+            before_tokens=before_tokens,
+            after_tokens=delete_tokens,
+            method="delete_pairs",
+            reason=None if delete_tokens <= max_tokens else "still_over_limit",
         )
 
     system_count = sum(1 for msg in messages if msg.get("role") == "system")
